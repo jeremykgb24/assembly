@@ -37,5 +37,5 @@ docker build -t x86_assembly .
 1. Run the container:
 
 ```sh
-docker run --rm -it x86_assembly
+./run.sh <filename.asm>
 ```
