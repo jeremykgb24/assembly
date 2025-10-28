@@ -7,7 +7,12 @@ section .data
     draw_msg db "It's a draw!", 10, 0
     input_format db '%d', 0
     newline db 10, 0
-    board_format db ' %c | %c | %c ', 10, '-----------', 10, ' %c | %c | %c ', 10, '-----------', 10, ' %c | %c | %c ', 10, 0
+    board_format db ' %c │ %c │ %c ', 10
+              db '───┼───┼───', 10
+              db ' %c │ %c │ %c ', 10
+              db '───┼───┼───', 10
+              db ' %c │ %c │ %c ', 10, 0
+
 
 extern printf
 extern scanf
