@@ -48,6 +48,12 @@ section .bss
     valor_dado      resd 1
     ganador         resd 1
 
+    serpientes_origen     resd 3
+    serpientes_destino    resd 3
+    escaleras_origen      resd 3
+    escaleras_destino     resd 3
+
+
     ultimo_jugador  resd 1
     ultimo_dado     resd 1
     hay_ultimo      resd 1
@@ -107,6 +113,9 @@ main:
 
     mov     dword [ganador], 0
     mov     dword [hay_ultimo], 0
+    
+    call generar_serpientes_escaleras
+
 
 ;====================================================
 ; BUCLE PRINCIPAL DE LA PARTIDA
@@ -253,6 +262,7 @@ check_win_j3:
     jne     despues_movimiento
     mov     dword [ganador], 3
 
+
 despues_movimiento:
     ; dibujar tablero despues de mover
     call    dibujar_tablero
@@ -301,6 +311,8 @@ imprimir_info:
     inc     eax
     mov     [jugador_actual], eax
     jmp     bucle_turnos
+
+
 
 ;====================================================
 ; FIN PARTIDA Y RESUMEN
@@ -360,6 +372,113 @@ skip_j2_resumen:
 skip_j3_resumen:
     mov     eax, 0
     leave
+    ret
+
+;====================================================
+; random_rango(min, max)
+; Entrada (cdecl):
+;   push max
+;   push min
+;   call random_rango
+;
+; En la función:
+;   [ebp+8]  = min
+;   [ebp+12] = max
+;
+; Salida:
+;   eax = número aleatorio entre min y max (inclusive)
+;====================================================
+random_rango:
+    push    ebp
+    mov     ebp, esp
+
+    push    ebx
+    push    ecx
+    push    edx
+
+    rdtsc                      ; aleatorio base en EDX:EAX
+    xor     edx, edx           ; usaremos solo EAX como dividendo
+
+    mov     ecx, [ebp+8]       ; min
+    mov     ebx, [ebp+12]      ; max
+
+    sub     ebx, ecx           ; max - min
+    inc     ebx                ; rango = max - min + 1
+    div     ebx                ; EAX/EBX, resto en EDX (0..rango-1)
+
+    add     edx, ecx           ; min + resto
+    mov     eax, edx           ; resultado final en EAX
+
+    pop     edx
+    pop     ecx
+    pop     ebx
+    pop     ebp
+    ret     8                  ; limpia 2 argumentos (min, max)
+
+
+;====================================================
+; generar_serpientes_escaleras
+; Genera 3 serpientes y 3 escaleras aleatorias
+;====================================================
+generar_serpientes_escaleras:
+    push    ebx
+    push    ecx
+    push    edx
+
+    ;---------------------------------------
+    ; Generar serpientes
+    ;---------------------------------------
+    mov     ecx, 3
+    xor     ebx, ebx
+
+.gen_serp:
+    ; origen aleatorio (11..99)
+    push    99          ; max
+    push    11          ; min
+    call    random_rango
+    mov     [serpientes_origen + ebx*4], eax
+
+
+    ; destino aleatorio (1..origen-1)
+    dec     eax                 ; eax = origen - 1  (máximo)
+    push    eax                 ; max
+    push    1                   ; min
+    call    random_rango
+    mov     [serpientes_destino + ebx*4], eax
+
+
+    inc     ebx
+    loop    .gen_serp
+
+    ;---------------------------------------
+    ; Generar escaleras
+    ;---------------------------------------
+    mov     ecx, 3
+    xor     ebx, ebx
+
+.gen_esc:
+    ; origen aleatorio (1..89)
+    push    89          ; max
+    push    1           ; min
+    call    random_rango
+    mov     [escaleras_origen + ebx*4], eax
+
+
+    ; destino aleatorio (origen+1 .. 100)
+    mov     edx, eax
+    inc     edx                 ; edx = origen + 1  (min)
+    push    100                 ; max
+    push    edx                 ; min
+    call    random_rango
+    mov     [escaleras_destino + ebx*4], eax
+
+
+    inc     ebx
+    loop    .gen_esc
+
+    pop     edx
+    pop     ecx
+    pop     ebx
     ret
 
 ;====================================================
@@ -493,12 +612,44 @@ dibujar_tablero:
     mov     edi, casillas
     mov     al, '.'
     rep     stosb
+    
+    ;------------------------------------------------
+    ; Colocar serpientes (S/s) y escaleras (E/e)
+    ;------------------------------------------------
+    mov     ecx, 3
+    xor     ebx, ebx
 
-    ;------------------------------------------------
-    ; Aquí, si luego quieres, puedes colocar
-    ; serpientes y escaleras en 'casillas' antes
-    ; de dibujar los jugadores (S/E).
-    ;------------------------------------------------
+.dib_s:
+    ; cabeza de la serpiente (S)
+    mov     eax, [serpientes_origen + ebx*4]
+    call    convertir_pos_a_indice
+    mov     byte [casillas + eax], 'S'
+
+    ; cola de la serpiente (s)
+    mov     eax, [serpientes_destino + ebx*4]
+    call    convertir_pos_a_indice
+    mov     byte [casillas + eax], 's'
+
+    inc     ebx
+    loop    .dib_s
+
+    mov     ecx, 3
+    xor     ebx, ebx
+
+.dib_e:
+    ; base de la escalera (E)
+    mov     eax, [escaleras_origen + ebx*4]
+    call    convertir_pos_a_indice
+    mov     byte [casillas + eax], 'E'
+
+    ; cima de la escalera (e)
+    mov     eax, [escaleras_destino + ebx*4]
+    call    convertir_pos_a_indice
+    mov     byte [casillas + eax], 'e'
+
+    inc     ebx
+    loop    .dib_e
+
 
     ; colocar jugador 1
     mov     eax, [pos_j1]
