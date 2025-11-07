@@ -17,7 +17,7 @@ section .data
     fmt_top     db "┌─┬─┬─┬─┬─┬─┬─┬─┬─┬─┐", 10, 0
     fmt_mid     db "├─┼─┼─┼─┼─┼─┼─┼─┼─┼─┤", 10, 0
     fmt_bottom  db "└─┴─┴─┴─┴─┴─┴─┴─┴─┴─┘", 10, 0
-    fmt_row     db "│%c│%c│%c│%c│%c│%c│%c│%c│%c│%c│", 10, 0
+    fmt_row     db "|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|", 10, 0
 
     msg_pedir_jug   db 10, "Cuantos jugadores van a jugar? (1-3): ", 0
     msg_turno       db 10, "Turno del jugador %d de %d", 10, 0
@@ -29,8 +29,8 @@ section .data
 
     msg_turno_info  db 10, "Jugador %d: dado %d, posicion %d, turnos %d", 10, 0
 
-    fmt_char    db "%c", 0
-    fmt_int     db "%d", 0
+    fmt_char        db "%c", 0
+    fmt_int         db "%d", 0
 
 section .bss
     num_jugadores   resd 1
@@ -102,13 +102,12 @@ bucle_partida:
     cmp     eax, 0
     jne     fin_partida
 
-    ; jugador_actual = 1 al inicio de la ronda
     mov     dword [jugador_actual], 1
 
 bucle_turnos:
     ; cargar jugador_actual y total jugadores
-    mov     eax, [jugador_actual]   ; eax = jugador actual
-    mov     ecx, [num_jugadores]    ; ecx = total jugadores
+    mov     eax, [jugador_actual]
+    mov     ecx, [num_jugadores]
 
     ; si jugador_actual > num_jugadores, empezar nueva ronda
     cmp     eax, ecx
@@ -119,17 +118,12 @@ bucle_turnos:
     cmp     edx, 0
     jne     fin_partida
 
-    ; guardar el numero de jugador en ESI (constante en este turno)
-    mov     esi, eax                ; esi = jugador actual
-
-    ;---------------------------------
-    ; INICIO DEL TURNO DEL JUGADOR ESI
-    ;---------------------------------
+    mov     esi, eax
 
     ; dibujar tablero antes de lanzar dado
     call    dibujar_tablero
 
-    ; mensaje de turno: jugador ESI de ECX
+    ; mensaje de turno
     push    ecx
     push    esi
     push    msg_turno
@@ -147,14 +141,14 @@ bucle_turnos:
     call    scanf
     add     esp, 8
 
-    ; lanzar dado 1..6
+    ; lanzar dado 1..6 usando rdtsc
     rdtsc
     mov     ecx, 6
     xor     edx, edx
-    div     ecx               ; eax / 6, resto en edx
+    div     ecx
 
-    mov     eax, edx          ; 0..5
-    add     eax, 1            ; 1..6
+    mov     eax, edx
+    add     eax, 1
     mov     [valor_dado], eax
 
     ; mover jugador segun ESI
@@ -236,15 +230,15 @@ despues_movimiento:
     ; dibujar tablero despues de mover
     call    dibujar_tablero
 
-    ; mostrar info del turno: jugador, dado, posicion, turnos
-    mov     eax, esi              ; jugador
-    mov     edx, [valor_dado]     ; dado
+    ; mostrar info del turno
+    mov     eax, esi
+    mov     edx, [valor_dado]
 
     cmp     esi, 1
     je      info_j1
     cmp     esi, 2
     je      info_j2
-    ; jugador 3
+
     mov     ebx, [pos_j3]
     mov     ecx, [turnos_j3]
     jmp     imprimir_info
@@ -259,8 +253,6 @@ info_j2:
     mov     ecx, [turnos_j2]
 
 imprimir_info:
-    ; printf("Jugador %d: dado %d, posicion %d, turnos %d")
-    ; args (de derecha a izquierda): turnos (ECX), pos (EBX), dado (EDX), jugador (EAX)
     push    ecx
     push    ebx
     push    edx
@@ -269,12 +261,10 @@ imprimir_info:
     call    printf
     add     esp, 20
 
-    ; si ya hay ganador, salir
     mov     eax, [ganador]
     cmp     eax, 0
     jne     fin_partida
 
-    ; siguiente jugador: jugador_actual++
     mov     eax, [jugador_actual]
     inc     eax
     mov     [jugador_actual], eax
@@ -284,22 +274,18 @@ imprimir_info:
 ; FIN PARTIDA Y RESUMEN
 ;====================================================
 fin_partida:
-    ; mostrar tablero final
     call    dibujar_tablero
 
-    ; mensaje de ganador
     mov     eax, [ganador]
     push    eax
     push    msg_ganador
     call    printf
     add     esp, 8
 
-    ; linea de resumen
     push    msg_resumen
     call    printf
     add     esp, 4
 
-    ; jugador 1
     mov     eax, 1
     mov     ebx, [pos_j1]
     mov     ecx, [turnos_j1]
@@ -310,10 +296,10 @@ fin_partida:
     call    printf
     add     esp, 16
 
-    ; jugador 2 si existe
     mov     eax, [num_jugadores]
     cmp     eax, 2
     jl      skip_j2_resumen
+
     mov     eax, 2
     mov     ebx, [pos_j2]
     mov     ecx, [turnos_j2]
@@ -323,12 +309,12 @@ fin_partida:
     push    msg_linea_jug
     call    printf
     add     esp, 16
-skip_j2_resumen:
 
-    ; jugador 3 si existe
+skip_j2_resumen:
     mov     eax, [num_jugadores]
     cmp     eax, 3
     jl      skip_j3_resumen
+
     mov     eax, 3
     mov     ebx, [pos_j3]
     mov     ecx, [turnos_j3]
@@ -338,8 +324,8 @@ skip_j2_resumen:
     push    msg_linea_jug
     call    printf
     add     esp, 16
-skip_j3_resumen:
 
+skip_j3_resumen:
     mov     eax, 0
     leave
     ret
@@ -349,50 +335,35 @@ skip_j3_resumen:
 ; Entrada: eax = posicion (1..100)
 ; Salida:  eax = indice en casillas (0..99)
 ; Logica:
-;   - El tablero se recorre en zigzag:
-;     fila de abajo 1..10 izq->der,
-;     fila siguiente 11..20 der->izq, etc.
+;   - El tablero se recorre por filas horizontales
+;     fila inferior 1..10 de izquierda a derecha
+;     fila siguiente 11..20 de izquierda a derecha, y asi sucesivamente.
 ;====================================================
 convertir_pos_a_indice:
     push    ebx
     push    ecx
     push    edx
 
-    ; pasar de 1..100 a 0..99
-    dec     eax                     ; eax = pos - 1
+    ; convertir de posicion 1..100 a indice 0..99
+    dec     eax
 
     mov     ebx, 10
     xor     edx, edx
-    div     ebx                     ; eax = fila_desde_abajo (0..9), edx = col_lr (0..9)
+    div     ebx
 
-    ; guardar fila_desde_abajo y col_lr
-    mov     ecx, eax                ; ecx = fila_desde_abajo
-    mov     ebx, edx                ; ebx = col izquierda->derecha
+    ; eax = fila_desde_abajo (0..9)
+    ; edx = columna_desde_izquierda (0..9)
+    mov     ecx, eax
+    mov     ebx, edx
 
-    ; decidir direccion de la fila (zigzag)
-    ; si fila_desde_abajo es par: col = col_lr
-    ; si es impar: col = 9 - col_lr
-    test    ecx, 1
-    jz      .fila_par
-
-    ; fila impar: derecha->izquierda
-    mov     edx, 9
-    sub     edx, ebx                ; col = 9 - col_lr
-    jmp     .col_ok
-
-.fila_par:
-    ; fila par: izquierda->derecha
-    mov     edx, ebx                ; col = col_lr
-
-.col_ok:
-    ; calcular fila desde arriba
+    ; calcular fila desde arriba: 9 - fila_desde_abajo
     mov     eax, 9
-    sub     eax, ecx                ; eax = fila_arriba (0..9)
+    sub     eax, ecx
 
-    ; indice = fila_arriba * 10 + col
-    mov     ebx, 10
-    mul     ebx                     ; eax = fila_arriba * 10
-    add     eax, edx                ; eax = indice final
+    ; indice = fila_arriba * 10 + columna
+    mov     edx, 10
+    mul     edx
+    add     eax, ebx
 
     pop     edx
     pop     ecx
@@ -420,14 +391,14 @@ dibujar_tablero:
     mov     ecx, 100
     mov     edi, casillas
     mov     al, '.'
-    rep stosb
+    rep     stosb
 
-    ; jugador 1
+    ; colocar jugador 1
     mov     eax, [pos_j1]
     call    convertir_pos_a_indice
     mov     byte [casillas + eax], '1'
 
-    ; jugador 2 si existe
+    ; colocar jugador 2 si existe
     mov     eax, [num_jugadores]
     cmp     eax, 2
     jl      .skip_j2
@@ -436,7 +407,7 @@ dibujar_tablero:
     mov     byte [casillas + eax], '2'
 .skip_j2:
 
-    ; jugador 3 si existe
+    ; colocar jugador 3 si existe
     mov     eax, [num_jugadores]
     cmp     eax, 3
     jl      .skip_j3
@@ -445,50 +416,49 @@ dibujar_tablero:
     mov     byte [casillas + eax], '3'
 .skip_j3:
 
-    ; linea superior
+    ; linea superior del tablero
     push    fmt_top
     call    printf
     add     esp, 4
 
-    xor     esi, esi        ; fila = 0
+    ; recorrer filas desde la parte superior
+    xor     esi, esi
 
-print_filas_tablero:
+.filas_tablero:
     mov     eax, esi
     mov     ebx, 10
-    mul     ebx             ; eax = fila * 10
-    mov     edx, eax        ; base
+    mul     ebx
+    mov     edx, eax
 
-    mov     ecx, 9          ; columnas 9..1
+    ; recorrer columnas de izquierda a derecha
+    mov     ecx, 0
 
-push_cols_tablero:
+.columnas_tablero:
     mov     eax, edx
     add     eax, ecx
     movzx   ebx, byte [casillas + eax]
     push    ebx
-    loop    push_cols_tablero
-
-    ; columna 0
-    mov     eax, edx
-    movzx   ebx, byte [casillas + eax]
-    push    ebx
+    inc     ecx
+    cmp     ecx, 10
+    jl      .columnas_tablero
 
     push    fmt_row
     call    printf
     add     esp, 4 + 10*4
 
     cmp     esi, 9
-    je      .no_mid_line
+    je      .ultima_fila
 
     push    fmt_mid
     call    printf
     add     esp, 4
 
-.no_mid_line:
+.ultima_fila:
     inc     esi
     cmp     esi, 10
-    jl      print_filas_tablero
+    jl      .filas_tablero
 
-    ; linea inferior
+    ; linea inferior del tablero
     push    fmt_bottom
     call    printf
     add     esp, 4
