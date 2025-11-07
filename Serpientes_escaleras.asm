@@ -348,24 +348,51 @@ skip_j3_resumen:
 ; convertir_pos_a_indice
 ; Entrada: eax = posicion (1..100)
 ; Salida:  eax = indice en casillas (0..99)
+; Logica:
+;   - El tablero se recorre en zigzag:
+;     fila de abajo 1..10 izq->der,
+;     fila siguiente 11..20 der->izq, etc.
 ;====================================================
 convertir_pos_a_indice:
     push    ebx
     push    ecx
     push    edx
 
-    dec     eax             ; 1..100 -> 0..99
+    ; pasar de 1..100 a 0..99
+    dec     eax                     ; eax = pos - 1
+
     mov     ebx, 10
     xor     edx, edx
-    div     ebx             ; eax = fila_desde_abajo, edx = columna
+    div     ebx                     ; eax = fila_desde_abajo (0..9), edx = col_lr (0..9)
 
-    mov     ecx, 9
-    sub     ecx, eax        ; fila_arriba = 9 - fila_desde_abajo
+    ; guardar fila_desde_abajo y col_lr
+    mov     ecx, eax                ; ecx = fila_desde_abajo
+    mov     ebx, edx                ; ebx = col izquierda->derecha
 
-    mov     eax, ecx
+    ; decidir direccion de la fila (zigzag)
+    ; si fila_desde_abajo es par: col = col_lr
+    ; si es impar: col = 9 - col_lr
+    test    ecx, 1
+    jz      .fila_par
+
+    ; fila impar: derecha->izquierda
+    mov     edx, 9
+    sub     edx, ebx                ; col = 9 - col_lr
+    jmp     .col_ok
+
+.fila_par:
+    ; fila par: izquierda->derecha
+    mov     edx, ebx                ; col = col_lr
+
+.col_ok:
+    ; calcular fila desde arriba
+    mov     eax, 9
+    sub     eax, ecx                ; eax = fila_arriba (0..9)
+
+    ; indice = fila_arriba * 10 + col
     mov     ebx, 10
-    mul     ebx             ; fila_arriba * 10
-    add     eax, edx        ; + columna
+    mul     ebx                     ; eax = fila_arriba * 10
+    add     eax, edx                ; eax = indice final
 
     pop     edx
     pop     ecx
