@@ -22,6 +22,7 @@ section .data
     msg_pedir_jug   db 10, "Cuantos jugadores van a jugar? (1-3): ", 0
     msg_turno       db 10, "Turno del jugador %d de %d", 10, 0
     msg_enter       db 10, "Presiona ENTER para tirar el dado...", 10, 0
+    msg_prev_dado   db 10, "Jugador %d saco %d en el turno anterior", 10, 0
 
     msg_ganador     db 10, "El jugador %d ha ganado la partida.", 10, 0
     msg_resumen     db 10, "Resumen de la partida:", 10, 0
@@ -46,6 +47,10 @@ section .bss
 
     valor_dado      resd 1
     ganador         resd 1
+
+    ultimo_jugador  resd 1
+    ultimo_dado     resd 1
+    hay_ultimo      resd 1
 
     tecla           resb 1
 
@@ -101,6 +106,7 @@ main:
     mov     dword [turnos_j3], 0
 
     mov     dword [ganador], 0
+    mov     dword [hay_ultimo], 0
 
 ;====================================================
 ; BUCLE PRINCIPAL DE LA PARTIDA
@@ -131,13 +137,26 @@ bucle_turnos:
     ; dibujar tablero antes de lanzar dado
     call    dibujar_tablero
 
-    ; mensaje de turno
-    push    ecx
-    push    esi
-    push    msg_turno
+    ; si hay un turno anterior, mostrar cuanto saco el dado
+    mov     eax, [hay_ultimo]
+    cmp     eax, 0
+    je      .sin_prev
+
+    mov     eax, [ultimo_jugador]
+    mov     ebx, [ultimo_dado]
+    push    ebx
+    push    eax
+    push    msg_prev_dado
     call    printf
     add     esp, 12
 
+    .sin_prev:
+        ; mensaje de turno
+        push    ecx
+        push    esi
+        push    msg_turno
+        call    printf
+        add     esp, 12
     ; pedir ENTER
     push    msg_enter
     call    printf
@@ -241,6 +260,11 @@ despues_movimiento:
     ; mostrar info del turno
     mov     eax, esi
     mov     edx, [valor_dado]
+
+    ; guardar info basica del turno para el siguiente
+    mov     [ultimo_jugador], esi
+    mov     [ultimo_dado], edx
+    mov     dword [hay_ultimo], 1
 
     cmp     esi, 1
     je      info_j1
