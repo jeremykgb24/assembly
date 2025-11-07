@@ -70,6 +70,14 @@ main:
     call    scanf
     add     esp, 8
 
+    ; consumir el ENTER que queda en el buffer
+    ; (para que no se use como primer tiro del jugador 1)
+    lea     eax, [tecla]        ; tecla ya está declarada en .bss
+    push    eax
+    push    fmt_char            ; "%c"
+    call    scanf
+    add     esp, 8
+
     ; asegurar rango 1..3
     mov     eax, [num_jugadores]
     cmp     eax, 1
