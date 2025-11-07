@@ -336,8 +336,8 @@ skip_j3_resumen:
 ; Salida:  eax = indice en casillas (0..99)
 ;
 ; Tablero tipo serpiente:
-;   - La fila inferior (1..10) va de izquierda a derecha.
-;   - La siguiente fila (11..20) va de derecha a izquierda.
+;   - La fila inferior (1..10) va de IZQUIERDA a DERECHA.
+;   - La siguiente fila (11..20) va de DERECHA a IZQUIERDA.
 ;   - Luego izquierda a derecha, y así sucesivamente.
 ;   - Visualmente se imprime de la fila superior a la inferior.
 ;====================================================
@@ -347,43 +347,42 @@ convertir_pos_a_indice:
     push    edx
 
     ; pasar de posicion 1..100 a 0..99
-    dec     eax
+    dec     eax                 ; eax = k (0..99)
 
     ; eax = fila_desde_abajo (0..9)
-    ; edx = columna_en_ruta (0..9) segun el recorrido del jugador
+    ; edx = columna_en_ruta (0..9) como si fuera de izq->der
     mov     ebx, 10
     xor     edx, edx
-    div     ebx
+    div     ebx                 ; eax = fila_desde_abajo, edx = columna
 
-    mov     ecx, eax    ; ecx = fila_desde_abajo
-    mov     ebx, edx    ; ebx = columna_en_ruta
+    mov     ecx, eax            ; ecx = fila_desde_abajo
+    mov     ebx, edx            ; ebx = columna_en_ruta
 
     ; decidir sentido de la fila (serpiente):
-    ; fila_desde_abajo par  -> izquierda a derecha
-    ; fila_desde_abajo impar-> derecha a izquierda
+    ; fila_desde_abajo PAR  -> izquierda a derecha (NO se invierte)
+    ; fila_desde_abajo IMPAR-> derecha a izquierda (se invierte)
     test    ecx, 1
-    jz      .fila_par          ; si es par, se deja la columna tal cual
+    jz      .no_invertir        ; si es par, dejar la columna tal cual
 
     ; fila impar: invertir columna (0..9 -> 9..0)
     mov     edx, 9
     sub     edx, ebx
     mov     ebx, edx
 
-.fila_par:
+.no_invertir:
     ; calcular fila desde arriba: 9 - fila_desde_abajo
     mov     eax, 9
-    sub     eax, ecx          ; eax = fila_desde_arriba (0..9)
+    sub     eax, ecx            ; eax = fila_desde_arriba (0..9)
 
     ; indice = fila_arriba * 10 + columna_desde_izquierda
     mov     edx, 10
-    mul     edx               ; eax = fila_arriba * 10
-    add     eax, ebx          ; eax = indice final (0..99)
+    mul     edx                 ; eax = fila_arriba * 10
+    add     eax, ebx            ; eax = indice final (0..99)
 
     pop     edx
     pop     ecx
     pop     ebx
     ret
-
 
 ;====================================================
 ; colocar_jugador_en_casillas
@@ -509,17 +508,18 @@ dibujar_tablero:
     mul     ebx
     mov     edx, eax          ; edx = indice base de la fila
 
-    ; recorrer columnas de izquierda a derecha (0..9)
-    mov     ecx, 0
+    ; recorrer columnas de izquierda a derecha, pero empujando al revés
+    ; para que printf las reciba en el orden correcto.
+    mov     ecx, 9            ; empezamos en la columna 9
 
 .columnas_tablero:
     mov     eax, edx
-    add     eax, ecx          ; eax = indice casilla
+    add     eax, ecx          ; eax = indice casilla (base_fila + columna)
     movzx   ebx, byte [casillas + eax]
-    push    ebx
-    inc     ecx
-    cmp     ecx, 10
-    jl      .columnas_tablero
+    push    ebx               ; se empuja primero col9, luego 8, ..., hasta 0
+    dec     ecx
+    jge     .columnas_tablero
+
 
     push    fmt_row
     call    printf
