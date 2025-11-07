@@ -334,38 +334,108 @@ skip_j3_resumen:
 ; convertir_pos_a_indice
 ; Entrada: eax = posicion (1..100)
 ; Salida:  eax = indice en casillas (0..99)
-; Logica:
-;   - El tablero se recorre por filas horizontales
-;     fila inferior 1..10 de izquierda a derecha
-;     fila siguiente 11..20 de izquierda a derecha, y asi sucesivamente.
+;
+; Tablero tipo serpiente:
+;   - La fila inferior (1..10) va de izquierda a derecha.
+;   - La siguiente fila (11..20) va de derecha a izquierda.
+;   - Luego izquierda a derecha, y así sucesivamente.
+;   - Visualmente se imprime de la fila superior a la inferior.
 ;====================================================
 convertir_pos_a_indice:
     push    ebx
     push    ecx
     push    edx
 
-    ; convertir de posicion 1..100 a indice 0..99
+    ; pasar de posicion 1..100 a 0..99
     dec     eax
 
+    ; eax = fila_desde_abajo (0..9)
+    ; edx = columna_en_ruta (0..9) segun el recorrido del jugador
     mov     ebx, 10
     xor     edx, edx
     div     ebx
 
-    ; eax = fila_desde_abajo (0..9)
-    ; edx = columna_desde_izquierda (0..9)
-    mov     ecx, eax
+    mov     ecx, eax    ; ecx = fila_desde_abajo
+    mov     ebx, edx    ; ebx = columna_en_ruta
+
+    ; decidir sentido de la fila (serpiente):
+    ; fila_desde_abajo par  -> izquierda a derecha
+    ; fila_desde_abajo impar-> derecha a izquierda
+    test    ecx, 1
+    jz      .fila_par          ; si es par, se deja la columna tal cual
+
+    ; fila impar: invertir columna (0..9 -> 9..0)
+    mov     edx, 9
+    sub     edx, ebx
     mov     ebx, edx
 
+.fila_par:
     ; calcular fila desde arriba: 9 - fila_desde_abajo
     mov     eax, 9
-    sub     eax, ecx
+    sub     eax, ecx          ; eax = fila_desde_arriba (0..9)
 
-    ; indice = fila_arriba * 10 + columna
+    ; indice = fila_arriba * 10 + columna_desde_izquierda
     mov     edx, 10
-    mul     edx
-    add     eax, ebx
+    mul     edx               ; eax = fila_arriba * 10
+    add     eax, ebx          ; eax = indice final (0..99)
 
     pop     edx
+    pop     ecx
+    pop     ebx
+    ret
+
+
+;====================================================
+; colocar_jugador_en_casillas
+; Entrada:
+;   EAX = posicion (1..100)
+;   DL  = caracter del jugador ('1', '2' o '3')
+;
+; Lógica:
+;   - Si la casilla está vacía ('.' o cualquier cosa que consideres vacío):
+;       se escribe DL.
+;   - Si ya hay un jugador (ej: '1','2','3','S','E', etc.):
+;       se escribe 'D' (dos jugadores).
+;   - Si ya hay 'D':
+;       se escribe 'T' (tres jugadores).
+;   - Si ya hay 'T':
+;       se deja como 'T'.
+;====================================================
+colocar_jugador_en_casillas:
+    push    ebx
+    push    ecx
+
+    ; convertir posicion a indice de la matriz
+    call    convertir_pos_a_indice     ; EAX = indice
+
+    ; leer lo que hay actualmente en la casilla
+    mov     bl, [casillas + eax]
+
+    ; si la casilla está vacía ('.'), escribir el jugador
+    cmp     bl, '.'
+    je      .set_single
+
+    ; si ya hay 'D', pasa a 'T'
+    cmp     bl, 'D'
+    je      .set_T
+
+    ; si ya hay 'T', no hacer nada
+    cmp     bl, 'T'
+    je      .done
+
+    ; si hay cualquier otra cosa (otro jugador, S, E, etc):
+    ; dos elementos -> 'D'
+    mov     byte [casillas + eax], 'D'
+    jmp     .done
+
+.set_single:
+    mov     [casillas + eax], dl
+    jmp     .done
+
+.set_T:
+    mov     byte [casillas + eax], 'T'
+
+.done:
     pop     ecx
     pop     ebx
     ret
@@ -393,27 +463,35 @@ dibujar_tablero:
     mov     al, '.'
     rep     stosb
 
+    ;------------------------------------------------
+    ; Aquí, si luego quieres, puedes colocar
+    ; serpientes y escaleras en 'casillas' antes
+    ; de dibujar los jugadores (S/E).
+    ;------------------------------------------------
+
     ; colocar jugador 1
     mov     eax, [pos_j1]
-    call    convertir_pos_a_indice
-    mov     byte [casillas + eax], '1'
+    mov     dl, '1'
+    call    colocar_jugador_en_casillas
 
     ; colocar jugador 2 si existe
     mov     eax, [num_jugadores]
     cmp     eax, 2
     jl      .skip_j2
+
     mov     eax, [pos_j2]
-    call    convertir_pos_a_indice
-    mov     byte [casillas + eax], '2'
+    mov     dl, '2'
+    call    colocar_jugador_en_casillas
 .skip_j2:
 
     ; colocar jugador 3 si existe
     mov     eax, [num_jugadores]
     cmp     eax, 3
     jl      .skip_j3
+
     mov     eax, [pos_j3]
-    call    convertir_pos_a_indice
-    mov     byte [casillas + eax], '3'
+    mov     dl, '3'
+    call    colocar_jugador_en_casillas
 .skip_j3:
 
     ; linea superior del tablero
@@ -421,21 +499,22 @@ dibujar_tablero:
     call    printf
     add     esp, 4
 
-    ; recorrer filas desde la parte superior
-    xor     esi, esi
+    ; recorrer filas desde la parte superior (0..9)
+    xor     esi, esi          ; esi = fila (0..9 desde arriba)
 
 .filas_tablero:
+    ; calcular índice base de la fila: fila * 10
     mov     eax, esi
     mov     ebx, 10
     mul     ebx
-    mov     edx, eax
+    mov     edx, eax          ; edx = indice base de la fila
 
-    ; recorrer columnas de izquierda a derecha
+    ; recorrer columnas de izquierda a derecha (0..9)
     mov     ecx, 0
 
 .columnas_tablero:
     mov     eax, edx
-    add     eax, ecx
+    add     eax, ecx          ; eax = indice casilla
     movzx   ebx, byte [casillas + eax]
     push    ebx
     inc     ecx
