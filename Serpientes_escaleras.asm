@@ -4,56 +4,65 @@ extern system
 
 section .data
     ;-------------------------------------
-    ; Trever
     ; Comentario:
-    ; Se creo el arreglo principal del tablero con 100 casillas.
-    ; Cada casilla es un solo caracter sin ceros intermedios.
-    ; Esto representa una matriz logica de 10x10.
+    ; Arreglo principal del tablero con 100 casillas.
+    ; Cada casilla es un solo caracter, esto representa
+    ; una matriz logica de 10x10.
     ;-------------------------------------
     casillas: times 100 db '.'
 
     clear_cmd   db "clear", 0
 
     ;-------------------------------------
-    ; Trever
     ; Comentario:
-    ; Estos caracteres se dejan listos para cuando se implementen
-    ; las serpientes, escaleras y los tres jugadores.
-    ; Por ahora no se usan, pero sirven como referencia.
+    ; Caracteres de referencia para el juego.
     ;-------------------------------------
     serpiente   db 'S', 0
     escalera    db 'E', 0
-    jugador1    db '1', 0
-    jugador2    db '2', 0
-    jugador3    db '3', 0
+    jugador1_c  db '1', 0
+    jugador2_c  db '2', 0
+    jugador3_c  db '3', 0
     vacio       db '.', 0
 
     ;-------------------------------------
-    ; Trever
     ; Comentario:
-    ; Formatos para dibujar el tablero con caracteres de caja.
-    ; Cada linea representa 10 columnas.
+    ; Formatos para dibujar el tablero con caracteres
+    ; de caja. Cada linea tiene espacio para 10 columnas.
     ;-------------------------------------
     fmt_top     db "┌─┬─┬─┬─┬─┬─┬─┬─┬─┬─┐", 10, 0
     fmt_mid     db "├─┼─┼─┼─┼─┼─┼─┼─┼─┼─┤", 10, 0
-
-    ;-------------------------------------
-    ; Trever
-    ; Comentario:
-    ; Esta linea se agrega para cerrar el tablero por la parte inferior.
-    ; Antes el tablero terminaba abierto visualmente, por eso parecia incompleto.
-    ;-------------------------------------
     fmt_bottom  db "└─┴─┴─┴─┴─┴─┴─┴─┴─┴─┘", 10, 0
-
-    ; Fila con 10 caracteres
     fmt_row     db "│%c│%c│%c│%c│%c│%c│%c│%c│%c│%c│", 10, 0
 
-    msg_enter   db 10, "Presiona ENTER para tirar el dado...", 10, 0
+    ;-------------------------------------
+    ; Comentario:
+    ; Mensajes e inputs para interactuar con el usuario.
+    ;-------------------------------------
+    msg_pedir_jug   db 10, "Cuantos jugadores van a jugar? (1-3): ", 0
+    msg_turno       db 10, "Turno del jugador %d de %d", 10, 0
+    msg_enter       db 10, "Presiona ENTER para tirar el dado...", 10, 0
+    msg_dado        db 10, "Valor del dado: %d", 10, 0
+
     fmt_char    db "%c", 0
-    msg_dado    db 10, "Valor del dado: %d", 10, 0
+    fmt_int     db "%d", 0
 
 section .bss
-    tecla       resb 1
+    ;-------------------------------------
+    ; Comentario:
+    ; Variables para el numero de jugadores, posiciones,
+    ; contadores de turnos y ultimo valor de dado.
+    ;-------------------------------------
+    num_jugadores   resd 1
+    pos_j1          resd 1
+    pos_j2          resd 1
+    pos_j3          resd 1
+
+    turnos_j1       resd 1
+    turnos_j2       resd 1
+    turnos_j3       resd 1
+
+    valor_dado      resd 1
+    tecla           resb 1
 
 section .text
     global main
@@ -66,129 +75,80 @@ main:
     mov     ebp, esp
 
     ;-------------------------------------
-    ; Trever
     ; Comentario:
-    ; Se limpia el tablero llenandolo con puntos.
-    ; Esto asegura que todas las casillas inician vacias
-    ; antes de colocar jugadores o elementos del juego.
+    ; Se pide al usuario la cantidad de jugadores.
+    ; Si el usuario pone un valor fuera de rango,
+    ; se ajusta a un minimo de 1 y maximo de 3.
     ;-------------------------------------
-    mov     ecx, 100
-    mov     edi, casillas
-    mov     al, '.'
-    rep stosb
-
-    ;-------------------------------------
-    ; Trever
-    ; Comentario:
-    ; Se coloca el jugador 1 en la esquina inferior izquierda.
-    ; Se usa la formula fila*10 + columna.
-    ; Fila 9, columna 0 -> 9*10 + 0 = indice 90.
-    ;-------------------------------------
-    mov     byte [casillas + 90], '1'
-
-    ;-------------------------------------
-    ; Trever
-    ; Comentario:
-    ; Se limpia la pantalla con el comando "clear"
-    ; para que el tablero aparezca sin basura visual.
-    ;-------------------------------------
-    push    clear_cmd
-    call    system
-    add     esp, 4
-
-    ;-------------------------------------
-    ; Trever
-    ; Comentario:
-    ; Se imprime la linea superior del tablero.
-    ; Esta linea corresponde a las 10 columnas horizontales.
-    ;-------------------------------------
-    push    fmt_top
+    push    msg_pedir_jug
     call    printf
     add     esp, 4
 
-    xor     esi, esi        ; esi = numero de fila (0..9)
+    lea     eax, [num_jugadores]
+    push    eax
+    push    fmt_int
+    call    scanf
+    add     esp, 8
 
-;====================================================
-;            IMPRESION DE LAS 10 FILAS
-;====================================================
-print_filas:
+    mov     eax, [num_jugadores]
+    cmp     eax, 1
+    jge     .check_max
+    mov     dword [num_jugadores], 1
+    jmp     .validado
+
+.check_max:
+    cmp     eax, 3
+    jle     .validado
+    mov     dword [num_jugadores], 3
+
+.validado:
     ;-------------------------------------
-    ; Trever
     ; Comentario:
-    ; Se calcula la base de la fila en el arreglo lineal.
-    ; base = fila * 10
+    ; Se inicializan las posiciones de los jugadores en 1.
+    ; Todos empiezan en la casilla 1 segun el enunciado.
+    ; Tambien se limpian los contadores de turnos.
     ;-------------------------------------
-    mov     eax, esi
-    mov     ebx, 10
-    mul     ebx             ; eax = fila * 10
-    mov     edx, eax        ; edx = base de la fila
+    mov     dword [pos_j1], 1
+    mov     dword [pos_j2], 1
+    mov     dword [pos_j3], 1
+
+    mov     dword [turnos_j1], 0
+    mov     dword [turnos_j2], 0
+    mov     dword [turnos_j3], 0
 
     ;-------------------------------------
-    ; Trever
     ; Comentario:
-    ; Se van empujando las 10 casillas de la fila como caracteres.
-    ; Se usa %c por cada casilla para no depender de cadenas con 0.
+    ; Se dibuja por primera vez el tablero con los jugadores
+    ; en sus posiciones iniciales.
     ;-------------------------------------
-    mov     ecx, 9          ; columnas 9..1 en el loop
-
-push_cols:
-    mov     eax, edx
-    add     eax, ecx        ; base + columna
-    movzx   ebx, byte [casillas + eax]
-    push    ebx
-    loop    push_cols
-
-    ; columna 0 (la que falta despues del loop)
-    mov     eax, edx
-    movzx   ebx, byte [casillas + eax]
-    push    ebx
+    call    dibujar_tablero
 
     ;-------------------------------------
-    ; Trever
     ; Comentario:
-    ; Se imprime la fila completa del tablero con sus 10 casillas.
+    ; Se realiza una ronda de turnos: cada jugador
+    ; tira el dado y se mueve una vez.
     ;-------------------------------------
-    push    fmt_row
+    mov     ebx, 1                      ; jugador actual = 1
+    mov     ecx, [num_jugadores]        ; total de jugadores
+
+bucle_jugadores:
+    cmp     ebx, ecx
+    jg      fin_ronda                   ; si jugador actual > num_jugadores, termina
+
+    ;-------------------------------------
+    ; Comentario:
+    ; Mensaje que indica de quien es el turno.
+    ;-------------------------------------
+    push    ecx                         ; segundo parametro: total jugadores
+    push    ebx                         ; primer parametro: numero de jugador
+    push    msg_turno
     call    printf
-    add     esp, 4 + 10*4       ; formato + 10 argumentos
+    add     esp, 12
 
     ;-------------------------------------
-    ; Trever
     ; Comentario:
-    ; Si no es la ultima fila, se imprime la linea de separacion.
-    ; Esto marca claramente las 10 filas verticales.
-    ;-------------------------------------
-    cmp     esi, 9
-    je      skip_mid_line
-
-    push    fmt_mid
-    call    printf
-    add     esp, 4
-
-skip_mid_line:
-    inc     esi
-    cmp     esi, 10
-    jl      print_filas
-
-    ;-------------------------------------
-    ; Trever
-    ; Comentario:
-    ; Despues de imprimir las 10 filas se cierra el tablero
-    ; con la linea inferior. Ahora el tablero se ve como un
-    ; marco completo de 10x10.
-    ;-------------------------------------
-    push    fmt_bottom
-    call    printf
-    add     esp, 4
-
-    ;================================================
-    ;          PAUSA Y LANZAMIENTO DEL DADO
-    ;================================================
-    ;-------------------------------------
-    ; Trever
-    ; Comentario:
-    ; Se muestra un mensaje para que el usuario presione ENTER
-    ; antes de lanzar el dado, simulando un turno real.
+    ; Se solicita al usuario que presione ENTER
+    ; para simular el lanzamiento del dado.
     ;-------------------------------------
     push    msg_enter
     call    printf
@@ -201,30 +161,261 @@ skip_mid_line:
     add     esp, 8
 
     ;-------------------------------------
-    ; Trever
     ; Comentario:
-    ; Se usa rdtsc para generar un numero pseudoaleatorio.
-    ; Luego se aplica modulo 6 y se suma 1 para limitar
-    ; el resultado al rango de un dado (1 a 6).
+    ; Lanzamiento del dado usando rdtsc como fuente
+    ; pseudoaleatoria. Se limita el resultado al rango 1..6.
     ;-------------------------------------
     rdtsc
-    mov     ebx, 6
+    mov     edi, 6
     xor     edx, edx
-    div     ebx              ; EAX / 6, resto en EDX
+    div     edi                ; EAX / 6, resto en EDX
 
-    mov     eax, edx         ; 0..5
-    add     eax, 1           ; 1..6
+    mov     eax, edx           ; 0..5
+    add     eax, 1             ; 1..6
+    mov     [valor_dado], eax  ; guardar el valor real del dado
 
+    ; Mostrar el valor del dado
     push    eax
     push    msg_dado
     call    printf
     add     esp, 8
 
     ;-------------------------------------
-    ; Trever
     ; Comentario:
-    ; Finaliza el programa limpiamente usando leave y ret.
+    ; Se actualiza la posicion del jugador actual
+    ; sumando el valor del dado guardado.
+    ;-------------------------------------
+    cmp     ebx, 1
+    je      mover_j1
+    cmp     ebx, 2
+    je      mover_j2
+    cmp     ebx, 3
+    je      mover_j3
+    jmp     despues_movimiento
+
+mover_j1:
+    mov     eax, [valor_dado]
+    mov     edx, [pos_j1]
+    add     edx, eax
+    cmp     edx, 100
+    jle     .ok1
+    mov     edx, 100
+.ok1:
+    mov     [pos_j1], edx
+    mov     esi, [turnos_j1]
+    inc     esi
+    mov     [turnos_j1], esi
+    jmp     despues_movimiento
+
+mover_j2:
+    mov     eax, [valor_dado]
+    mov     edx, [pos_j2]
+    add     edx, eax
+    cmp     edx, 100
+    jle     .ok2
+    mov     edx, 100
+.ok2:
+    mov     [pos_j2], edx
+    mov     esi, [turnos_j2]
+    inc     esi
+    mov     [turnos_j2], esi
+    jmp     despues_movimiento
+
+mover_j3:
+    mov     eax, [valor_dado]
+    mov     edx, [pos_j3]
+    add     edx, eax
+    cmp     edx, 100
+    jle     .ok3
+    mov     edx, 100
+.ok3:
+    mov     [pos_j3], edx
+    mov     esi, [turnos_j3]
+    inc     esi
+    mov     [turnos_j3], esi
+
+despues_movimiento:
+    ;-------------------------------------
+    ; Comentario:
+    ; Despues de mover al jugador se vuelve a dibujar
+    ; el tablero para reflejar las nuevas posiciones.
+    ;-------------------------------------
+    call    dibujar_tablero
+
+    inc     ebx
+    jmp     bucle_jugadores
+
+fin_ronda:
+    ;-------------------------------------
+    ; Comentario:
+    ; Por ahora el programa termina despues de una ronda
+    ; de turnos. Mas adelante aqui se agregara la logica
+    ; de victoria y reinicio de partida.
     ;-------------------------------------
     mov     eax, 0
+    leave
+    ret
+
+;====================================================
+; Funcion: convertir_pos_a_indice
+; Entrada: eax = posicion logica (1..100)
+; Salida:  eax = indice en el arreglo casillas (0..99)
+;====================================================
+convertir_pos_a_indice:
+    ;-------------------------------------
+    ; Comentario:
+    ; Convierte una posicion de juego (1 a 100)
+    ; al indice real dentro del arreglo lineal casillas.
+    ; La casilla 1 se ubica en la esquina inferior izquierda,
+    ; y la 100 en la esquina superior derecha.
+    ;-------------------------------------
+    push    ebx
+    push    ecx
+    push    edx
+
+    dec     eax             ; pos 1..100 -> 0..99
+    mov     ebx, 10
+    xor     edx, edx
+    div     ebx             ; eax = fila desde abajo (0..9), edx = columna (0..9)
+
+    ; fila_desde_abajo = eax
+    ; fila_arriba = 9 - fila_desde_abajo
+    mov     ecx, 9
+    sub     ecx, eax        ; ecx = fila_arriba
+
+    ; indice = fila_arriba * 10 + columna
+    mov     eax, ecx
+    mov     ebx, 10
+    mul     ebx             ; eax = fila_arriba * 10
+    add     eax, edx        ; eax = indice final
+
+    pop     edx
+    pop     ecx
+    pop     ebx
+    ret
+
+;====================================================
+; Funcion: dibujar_tablero
+; Dibuja el tablero 10x10 con los jugadores en sus
+; posiciones actuales.
+;====================================================
+dibujar_tablero:
+    push    ebp
+    mov     ebp, esp
+    push    ebx
+    push    esi
+    push    edi
+
+    ;-------------------------------------
+    ; Comentario:
+    ; Se limpia la pantalla para que cada dibujo del tablero
+    ; se vea fresco sin basura de impresiones anteriores.
+    ;-------------------------------------
+    push    clear_cmd
+    call    system
+    add     esp, 4
+
+    ;-------------------------------------
+    ; Comentario:
+    ; Se llena el arreglo casillas con puntos para
+    ; representar casillas vacias antes de colocar
+    ; a los jugadores.
+    ;-------------------------------------
+    mov     ecx, 100
+    mov     edi, casillas
+    mov     al, '.'
+    rep stosb
+
+    ;-------------------------------------
+    ; Comentario:
+    ; Se colocan las fichas de los jugadores en el
+    ; arreglo casillas segun su posicion actual.
+    ;-------------------------------------
+
+    ; Jugador 1
+    mov     eax, [pos_j1]
+    call    convertir_pos_a_indice
+    mov     byte [casillas + eax], '1'
+
+    ; Jugador 2 (solo si hay al menos 2 jugadores)
+    mov     eax, [num_jugadores]
+    cmp     eax, 2
+    jl      .skip_j2
+    mov     eax, [pos_j2]
+    call    convertir_pos_a_indice
+    mov     byte [casillas + eax], '2'
+.skip_j2:
+
+    ; Jugador 3 (solo si hay 3 jugadores)
+    mov     eax, [num_jugadores]
+    cmp     eax, 3
+    jl      .skip_j3
+    mov     eax, [pos_j3]
+    call    convertir_pos_a_indice
+    mov     byte [casillas + eax], '3'
+.skip_j3:
+
+    ;-------------------------------------
+    ; Comentario:
+    ; Se dibuja la linea superior del tablero.
+    ;-------------------------------------
+    push    fmt_top
+    call    printf
+    add     esp, 4
+
+    xor     esi, esi        ; fila = 0 (fila superior)
+
+print_filas_tablero:
+    ; base = fila * 10
+    mov     eax, esi
+    mov     ebx, 10
+    mul     ebx             ; eax = fila * 10
+    mov     edx, eax        ; edx = base
+
+    ; columnas 9..1 en el loop
+    mov     ecx, 9
+
+push_cols_tablero:
+    mov     eax, edx
+    add     eax, ecx
+    movzx   ebx, byte [casillas + eax]
+    push    ebx
+    loop    push_cols_tablero
+
+    ; columna 0
+    mov     eax, edx
+    movzx   ebx, byte [casillas + eax]
+    push    ebx
+
+    ; dibujar la fila
+    push    fmt_row
+    call    printf
+    add     esp, 4 + 10*4
+
+    ; linea media si no es la ultima fila
+    cmp     esi, 9
+    je      .no_mid_line
+
+    push    fmt_mid
+    call    printf
+    add     esp, 4
+
+.no_mid_line:
+    inc     esi
+    cmp     esi, 10
+    jl      print_filas_tablero
+
+    ;-------------------------------------
+    ; Comentario:
+    ; Se dibuja la linea inferior del tablero para cerrar
+    ; el marco visualmente.
+    ;-------------------------------------
+    push    fmt_bottom
+    call    printf
+    add     esp, 4
+
+    pop     edi
+    pop     esi
+    pop     ebx
     leave
     ret
