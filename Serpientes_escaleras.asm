@@ -18,6 +18,10 @@ section .data
     msg_opciones_turno db 10, "Presiona ENTER para tirar el dado, (r) para reiniciar o (q) para salir: ", 0
     msg_saliendo       db 10, "Saliendo del juego...", 10, 0
 
+    msg_turnos_totales db 10, "Turnos totales y posicion actual:", 10, 0
+    msg_turnos_j1      db "   Jugador 1: posicion %d, turnos %d", 10, 0
+    msg_turnos_j2      db "   Jugador 2: posicion %d, turnos %d", 10, 0
+    msg_turnos_j3      db "   Jugador 3: posicion %d, turnos %d", 10, 0
 
     msg_ganador     db 10, "El jugador %d ha ganado la partida.", 10, 0
     msg_resumen     db 10, "Resumen de la partida:", 10, 0
@@ -255,11 +259,57 @@ bucle_turnos:
     ; limpiar evento para que no se repita
     mov     dword [evento_tipo], 0
 
+    ;---------------------------------------
+    ; Imprimir turnos totales y posicion
+    ; de cada jugador
+    ;---------------------------------------
+    push    msg_turnos_totales
+    call    printf
+    add     esp, 4
+
+    ; Jugador 1 (siempre existe)
+    mov     eax, [pos_j1]
+    mov     ebx, [turnos_j1]
+    push    ebx            ; turnos
+    push    eax            ; posicion
+    push    msg_turnos_j1
+    call    printf
+    add     esp, 12
+
+    ; ¿hay jugador 2?
+    mov     eax, [num_jugadores]
+    cmp     eax, 2
+    jl      .no_j2
+
+    mov     eax, [pos_j2]
+    mov     ebx, [turnos_j2]
+    push    ebx
+    push    eax
+    push    msg_turnos_j2
+    call    printf
+    add     esp, 12
+
+.no_j2:
+    ; ¿hay jugador 3?
+    mov     eax, [num_jugadores]
+    cmp     eax, 3
+    jl      .no_j3
+
+    mov     eax, [pos_j3]
+    mov     ebx, [turnos_j3]
+    push    ebx
+    push    eax
+    push    msg_turnos_j3
+    call    printf
+    add     esp, 12
+
+.no_j3:
+
 .sin_prev:
     ;---------------------------------------
     ; mensaje de turno actual
     ;---------------------------------------
-    mov     ecx, [num_jugadores]   ; <-- RECARGAR AQUÍ
+    mov     ecx, [num_jugadores]
 
     push    ecx            ; total de jugadores
     push    esi            ; jugador_actual
