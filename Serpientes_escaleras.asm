@@ -26,7 +26,9 @@ section .data
     msg_bajo_serp   db "   -> Bajo por serpiente de %d a %d", 10, 0
     msg_sin_cambio  db "   -> Sin serpiente ni escalera", 10, 0
 
-    
+    msg_reiniciar   db 10, "Desea jugar otra partida con los mismos jugadores? (s/n): ", 0
+
+
     fmt_char        db "%c", 0
     fmt_int         db "%d", 0
 
@@ -424,9 +426,78 @@ skip_j2_resumen:
     add     esp, 16
 
 skip_j3_resumen:
+    ;---------------------------------------
+    ; Preguntar si desea jugar otra partida
+    ;---------------------------------------
+.preguntar:
+    push    msg_reiniciar
+    call    printf
+    add     esp, 4
+
+    ; leer opcion en 'tecla'
+    lea     eax, [tecla]
+    push    eax
+    push    fmt_char        ; "%c"
+    call    scanf
+    add     esp, 8
+
+    mov     bl, [tecla]     ; guardar respuesta
+
+    ; consumir el ENTER que queda en el buffer
+    lea     eax, [tecla]
+    push    eax
+    push    fmt_char
+    call    scanf
+    add     esp, 8
+
+    ; normalizar: solo aceptamos s/S o n/N
+    cmp     bl, 's'
+    je      reiniciar_partida
+    cmp     bl, 'S'
+    je      reiniciar_partida
+    cmp     bl, 'n'
+    je      salir_programa
+    cmp     bl, 'N'
+    je      salir_programa
+
+    ; si puso otra cosa, volver a preguntar
+    jmp     .preguntar
+
+salir_programa:
     mov     eax, 0
     leave
     ret
+
+
+reiniciar_partida:
+    ;---------------------------------------
+    ; Re-inicializar posiciones y contadores
+    ;---------------------------------------
+    mov     dword [pos_j1], 1
+    mov     dword [pos_j2], 1
+    mov     dword [pos_j3], 1
+
+    mov     dword [turnos_j1], 0
+    mov     dword [turnos_j2], 0
+    mov     dword [turnos_j3], 0
+
+    mov     dword [ganador], 0
+    mov     dword [hay_ultimo], 0
+
+    mov     dword [ultimo_jugador], 0
+    mov     dword [ultimo_dado], 0
+
+    mov     dword [evento_tipo], 0
+    mov     dword [evento_origen], 0
+    mov     dword [evento_destino], 0
+
+    ;---------------------------------------
+    ; Generar nuevas serpientes y escaleras
+    ;---------------------------------------
+    call    generar_serpientes_escaleras
+
+    ; jugador_actual se vuelve a manejar en bucle_partida
+    jmp     bucle_partida
 
 ;====================================================
 ; random_rango(min, max)
