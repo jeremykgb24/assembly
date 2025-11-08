@@ -20,6 +20,10 @@ section .data
     msg_resumen     db 10, "Resumen de la partida:", 10, 0
     msg_linea_jug   db "Jugador %d: posicion final %d, turnos jugados %d", 10, 0
 
+    msg_resumen_esc   db "   Escaleras usadas por el ganador: %d", 10, 0
+    msg_resumen_serp  db "   Serpientes usadas por el ganador: %d", 10, 0
+
+
     msg_turno_info  db 10, "Jugador %d: dado %d, posicion %d, turnos %d", 10, 0
 
     msg_subio_esc   db "   -> Subio por escalera de %d a %d", 10, 0
@@ -44,6 +48,16 @@ section .bss
     turnos_j2       resd 1
     turnos_j3       resd 1
 
+        ; contadores de escaleras y serpientes por jugador
+    esc_j1         resd 1
+    esc_j2         resd 1
+    esc_j3         resd 1
+
+    serp_j1        resd 1
+    serp_j2        resd 1
+    serp_j3        resd 1
+
+
     valor_dado      resd 1
     ganador         resd 1
 
@@ -60,6 +74,7 @@ section .bss
     evento_tipo     resd 1      ; 0 = nada, 1 = escalera, 2 = serpiente
     evento_origen   resd 1      ; posición antes de cambiar
     evento_destino  resd 1      ; posición después de cambiar
+
 
 
     tecla           resb 1
@@ -117,6 +132,15 @@ main:
 
     mov     dword [ganador], 0
     mov     dword [hay_ultimo], 0
+
+    mov     dword [esc_j1], 0
+    mov     dword [esc_j2], 0
+    mov     dword [esc_j3], 0
+
+    mov     dword [serp_j1], 0
+    mov     dword [serp_j2], 0
+    mov     dword [serp_j3], 0
+
     
     call generar_serpientes_escaleras
 
@@ -426,6 +450,45 @@ skip_j2_resumen:
     add     esp, 16
 
 skip_j3_resumen:
+
+    ;---------------------------------------
+    ; Mostrar cuantas escaleras y serpientes
+    ; uso el jugador ganador
+    ;---------------------------------------
+    mov     eax, [ganador]
+    cmp     eax, 1
+    je      .ganador_j1
+    cmp     eax, 2
+    je      .ganador_j2
+    ; si no es 1 ni 2, es 3
+    jmp     .ganador_j3
+
+.ganador_j1:
+    mov     ebx, [esc_j1]
+    mov     ecx, [serp_j1]
+    jmp     .tengo_contadores
+
+.ganador_j2:
+    mov     ebx, [esc_j2]
+    mov     ecx, [serp_j2]
+    jmp     .tengo_contadores
+
+.ganador_j3:
+    mov     ebx, [esc_j3]
+    mov     ecx, [serp_j3]
+
+.tengo_contadores:
+    ; imprimir escaleras usadas
+    push    ebx
+    push    msg_resumen_esc
+    call    printf
+    add     esp, 8
+
+    ; imprimir serpientes usadas
+    push    ecx
+    push    msg_resumen_serp
+    call    printf
+    add     esp, 8
     ;---------------------------------------
     ; Preguntar si desea jugar otra partida
     ;---------------------------------------
@@ -491,13 +554,21 @@ reiniciar_partida:
     mov     dword [evento_origen], 0
     mov     dword [evento_destino], 0
 
+    mov     dword [esc_j1], 0
+    mov     dword [esc_j2], 0
+    mov     dword [esc_j3], 0
+
+    mov     dword [serp_j1], 0
+    mov     dword [serp_j2], 0
+    mov     dword [serp_j3], 0
+
     ;---------------------------------------
     ; Generar nuevas serpientes y escaleras
     ;---------------------------------------
     call    generar_serpientes_escaleras
 
-    ; jugador_actual se vuelve a manejar en bucle_partida
     jmp     bucle_partida
+
 
 ;====================================================
 ; random_rango(min, max)
@@ -945,13 +1016,51 @@ aplicar_casilla_especial:
 .escalera_encontrada:
     mov     ecx, [escaleras_destino + edx*4] ; destino
     mov     [edi], ecx       ; actualizar posicion del jugador
+
+    ; incrementar contador de escaleras segun el jugador (ESI)
+    cmp     esi, 1
+    je      .inc_esc_j1
+    cmp     esi, 2
+    je      .inc_esc_j2
+    ; si no es 1 ni 2, asumimos jugador 3
+    inc     dword [esc_j3]
+    jmp     .esc_listo
+
+.inc_esc_j1:
+    inc     dword [esc_j1]
+    jmp     .esc_listo
+
+.inc_esc_j2:
+    inc     dword [esc_j2]
+
+.esc_listo:
     mov     eax, 1           ; tipo_evento = 1 (escalera)
     jmp     .fin
+
 
 .serpiente_encontrada:
     mov     ecx, [serpientes_destino + edx*4]
     mov     [edi], ecx
+
+    ; incrementar contador de serpientes segun el jugador (ESI)
+    cmp     esi, 1
+    je      .inc_serp_j1
+    cmp     esi, 2
+    je      .inc_serp_j2
+    ; jugador 3 por defecto
+    inc     dword [serp_j3]
+    jmp     .serp_listo
+
+.inc_serp_j1:
+    inc     dword [serp_j1]
+    jmp     .serp_listo
+
+.inc_serp_j2:
+    inc     dword [serp_j2]
+
+.serp_listo:
     mov     eax, 2           ; tipo_evento = 2 (serpiente)
+    jmp     .fin
 
 .fin:
     pop     esi
