@@ -408,7 +408,7 @@ bucle_turnos:
     call    scanf
     add     esp, 8
 
-    jmp     reiniciar_partida    ; usa tu rutina ya existente
+    jmp     reiniciar_partida    
 
 .salir_durante:
     ; tragarse el ENTER que se escribió después de la 'q'
@@ -418,7 +418,7 @@ bucle_turnos:
     call    scanf
     add     esp, 8
 
-    jmp     salir_programa       ; usa tu rutina ya existente
+    jmp     salir_programa      
 
 .continuar_turno:
 
@@ -765,13 +765,13 @@ random_rango:
     ret     8                  ; limpia 2 argumentos (min, max)
 
 
-;====================================================
+
 ; generar_serpientes_escaleras
 ; Genera 3 serpientes y 3 escaleras:
-;   - SIEMPRE verticales (misma columna).
-;   - Longitud de 1 a 3 casillas.
-;   - Sin posiciones repetidas entre sí.
-;====================================================
+
+
+
+
 generar_serpientes_escaleras:
     push    ebx
     push    ecx
@@ -1294,8 +1294,7 @@ dibujar_tablero:
     call    system
     add     esp, 4
 
-    ; OJO: quitamos el fondo global, ya no usamos color_bg aquí
-
+    
     ; llenar casillas con '.'
     mov     ecx, 100
     mov     edi, casillas
@@ -1524,3 +1523,4 @@ dibujar_tablero:
     pop     ebx
     leave
     ret
+
