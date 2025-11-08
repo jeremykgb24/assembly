@@ -15,6 +15,9 @@ section .data
     msg_pedir_jug   db 10, "Cuantos jugadores van a jugar? (1-3): ", 0
     msg_turno       db 10, "Turno del jugador %d de %d", 10, 0
     msg_enter       db 10, "Presiona ENTER para tirar el dado...", 10, 0
+    msg_opciones_turno db 10, "Presiona ENTER para tirar el dado, (r) para reiniciar o (q) para salir: ", 0
+    msg_saliendo       db 10, "Saliendo del juego...", 10, 0
+
 
     msg_ganador     db 10, "El jugador %d ha ganado la partida.", 10, 0
     msg_resumen     db 10, "Resumen de la partida:", 10, 0
@@ -264,16 +267,71 @@ bucle_turnos:
     call    printf
     add     esp, 12
 
-    ; pedir ENTER
-    push    msg_enter
+    ;---------------------------------------
+    ; Esperar acción del jugador
+    ;---------------------------------------
+.esperar_accion:
+    push    msg_opciones_turno
     call    printf
     add     esp, 4
 
+    ; leer una tecla
     lea     eax, [tecla]
     push    eax
     push    fmt_char
     call    scanf
     add     esp, 8
+
+    mov     al, [tecla]
+
+    ;-----------------------------------
+    ; Reiniciar durante la partida
+    ;-----------------------------------
+    cmp     al, 'r'
+    je      .reiniciar_durante
+    cmp     al, 'R'
+    je      .reiniciar_durante
+
+    ;-----------------------------------
+    ; Salir durante la partida
+    ;-----------------------------------
+    cmp     al, 'q'
+    je      .salir_durante
+    cmp     al, 'Q'
+    je      .salir_durante
+
+    ; Si presionó ENTER (ASCII 10 o 13 dependiendo del sistema)
+    cmp     al, 10
+    je      .continuar_turno
+    cmp     al, 13
+    je      .continuar_turno
+
+    ; Si presionó algo inválido, volver a preguntar
+    jmp     .esperar_accion
+
+.reiniciar_durante:
+    ; tragarse el ENTER que se escribió después de la 'r'
+    lea     eax, [tecla]
+    push    eax
+    push    fmt_char
+    call    scanf
+    add     esp, 8
+
+    jmp     reiniciar_partida    ; usa tu rutina ya existente
+
+.salir_durante:
+    ; tragarse el ENTER que se escribió después de la 'q'
+    lea     eax, [tecla]
+    push    eax
+    push    fmt_char
+    call    scanf
+    add     esp, 8
+
+    jmp     salir_programa       ; usa tu rutina ya existente
+
+.continuar_turno:
+
+
 
     ; lanzar dado 1..6 usando rdtsc
     rdtsc
@@ -528,6 +586,10 @@ skip_j3_resumen:
 
 salir_programa:
     mov     eax, 0
+    push    msg_saliendo
+    call    printf
+    add     esp, 4
+
     leave
     ret
 
