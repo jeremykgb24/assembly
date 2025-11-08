@@ -7,6 +7,16 @@ section .data
 
     clear_cmd   db "clear", 0
 
+    ; Códigos ANSI de color
+    color_reset     db 27, "[0m", 0          ; reset
+    color_bg_rojo   db 27, "[41m", 0         ; fondo rojo
+    color_bg_verde  db 27, "[42m", 0         ; fondo verde
+
+    color_p1        db 27, "[34m", 0         ; azul
+    color_p2        db 27, "[35m", 0         ; magenta
+    color_p3        db 27, "[36m", 0         ; cyan
+
+
     fmt_top     db "┌─┬─┬─┬─┬─┬─┬─┬─┬─┬─┐", 10, 0
     fmt_mid     db "├─┼─┼─┼─┼─┼─┼─┼─┼─┼─┤", 10, 0
     fmt_bottom  db "└─┴─┴─┴─┴─┴─┴─┴─┴─┴─┘", 10, 0
@@ -306,16 +316,47 @@ bucle_turnos:
 .no_j3:
 
 .sin_prev:
-    ;---------------------------------------
-    ; mensaje de turno actual
+       ;---------------------------------------
+    ; mensaje de turno actual (con color)
     ;---------------------------------------
     mov     ecx, [num_jugadores]
 
+    ; elegir color del jugador actual en base a ESI
+    cmp     esi, 1
+    je      .color_j1_turno
+    cmp     esi, 2
+    je      .color_j2_turno
+    jmp     .color_j3_turno
+
+.color_j1_turno:
+    push    color_p1
+    call    printf
+    add     esp, 4
+    jmp     .imprimir_turno
+
+.color_j2_turno:
+    push    color_p2
+    call    printf
+    add     esp, 4
+    jmp     .imprimir_turno
+
+.color_j3_turno:
+    push    color_p3
+    call    printf
+    add     esp, 4
+
+.imprimir_turno:
     push    ecx            ; total de jugadores
     push    esi            ; jugador_actual
     push    msg_turno
     call    printf
     add     esp, 12
+
+    ; reset de color para no “contaminar” otros prints
+    push    color_reset
+    call    printf
+    add     esp, 4
+
 
     ;---------------------------------------
     ; Esperar acción del jugador
@@ -1237,7 +1278,7 @@ colocar_jugador_en_casillas:
     ret
 
 ;====================================================
-; dibujar_tablero
+; dibujar_tablero (borde animado solamente)
 ;====================================================
 dibujar_tablero:
     push    ebp
@@ -1252,6 +1293,8 @@ dibujar_tablero:
     push    clear_cmd
     call    system
     add     esp, 4
+
+    ; OJO: quitamos el fondo global, ya no usamos color_bg aquí
 
     ; llenar casillas con '.'
     mov     ecx, 100
@@ -1296,7 +1339,6 @@ dibujar_tablero:
     inc     ebx
     loop    .dib_e
 
-
     ; colocar jugador 1
     mov     eax, [pos_j1]
     mov     dl, '1'
@@ -1322,12 +1364,47 @@ dibujar_tablero:
     call    colocar_jugador_en_casillas
 .skip_j3:
 
-    ; linea superior del tablero
+    ;---------------------------------------
+    ; LÍNEA SUPERIOR DEL TABLERO (CON COLOR)
+    ;---------------------------------------
+    mov     eax, [evento_tipo]
+    cmp     eax, 1
+    je      .top_esc
+    cmp     eax, 2
+    je      .top_serp
+    jmp     .top_normal
+
+.top_esc:
+    push    color_bg_verde
+    call    printf
+    add     esp, 4
+    jmp     .top_do
+
+.top_serp:
+    push    color_bg_rojo
+    call    printf
+    add     esp, 4
+    jmp     .top_do
+
+.top_normal:
+    ; sin color de fondo
+.top_do:
     push    fmt_top
     call    printf
     add     esp, 4
 
+    ; si hubo animación, resetear color
+    mov     eax, [evento_tipo]
+    cmp     eax, 0
+    je      .top_no_reset
+    push    color_reset
+    call    printf
+    add     esp, 4
+.top_no_reset:
+
+    ;---------------------------------------
     ; recorrer filas desde la parte superior (0..9)
+    ;---------------------------------------
     xor     esi, esi          ; esi = fila (0..9 desde arriba)
 
 .filas_tablero:
@@ -1338,36 +1415,105 @@ dibujar_tablero:
     mov     edx, eax          ; edx = indice base de la fila
 
     ; recorrer columnas de izquierda a derecha, pero empujando al revés
-    ; para que printf las reciba en el orden correcto.
     mov     ecx, 9            ; empezamos en la columna 9
 
 .columnas_tablero:
     mov     eax, edx
     add     eax, ecx          ; eax = indice casilla (base_fila + columna)
     movzx   ebx, byte [casillas + eax]
-    push    ebx               ; se empuja primero col9, luego 8, ..., hasta 0
+    push    ebx               ; se empuja primero col9, luego 8,...,0
     dec     ecx
     jge     .columnas_tablero
-
 
     push    fmt_row
     call    printf
     add     esp, 4 + 10*4
 
+    ; si NO es la última fila, dibujar separador medio
     cmp     esi, 9
     je      .ultima_fila
 
+    ;---------------------------------------
+    ; LÍNEA MEDIA (CON COLOR SI HAY EVENTO)
+    ;---------------------------------------
+    mov     eax, [evento_tipo]
+    cmp     eax, 1
+    je      .mid_esc
+    cmp     eax, 2
+    je      .mid_serp
+    jmp     .mid_normal
+
+.mid_esc:
+    push    color_bg_verde
+    call    printf
+    add     esp, 4
+    jmp     .mid_do
+
+.mid_serp:
+    push    color_bg_rojo
+    call    printf
+    add     esp, 4
+    jmp     .mid_do
+
+.mid_normal:
+    ; sin fondo
+.mid_do:
     push    fmt_mid
     call    printf
     add     esp, 4
+
+    mov     eax, [evento_tipo]
+    cmp     eax, 0
+    je      .after_mid_reset
+    push    color_reset
+    call    printf
+    add     esp, 4
+.after_mid_reset:
 
 .ultima_fila:
     inc     esi
     cmp     esi, 10
     jl      .filas_tablero
 
-    ; linea inferior del tablero
+    ;---------------------------------------
+    ; LÍNEA INFERIOR (CON COLOR)
+    ;---------------------------------------
+    mov     eax, [evento_tipo]
+    cmp     eax, 1
+    je      .bottom_esc
+    cmp     eax, 2
+    je      .bottom_serp
+    jmp     .bottom_normal
+
+.bottom_esc:
+    push    color_bg_verde
+    call    printf
+    add     esp, 4
+    jmp     .bottom_do
+
+.bottom_serp:
+    push    color_bg_rojo
+    call    printf
+    add     esp, 4
+    jmp     .bottom_do
+
+.bottom_normal:
+    ; sin fondo
+.bottom_do:
     push    fmt_bottom
+    call    printf
+    add     esp, 4
+
+    mov     eax, [evento_tipo]
+    cmp     eax, 0
+    je      .bottom_no_reset
+    push    color_reset
+    call    printf
+    add     esp, 4
+.bottom_no_reset:
+
+    ; por si acaso, dejar colores en default
+    push    color_reset
     call    printf
     add     esp, 4
 
