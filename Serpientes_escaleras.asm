@@ -418,68 +418,244 @@ random_rango:
 
 ;====================================================
 ; generar_serpientes_escaleras
-; Genera 3 serpientes y 3 escaleras aleatorias
+; Genera 3 serpientes y 3 escaleras:
+;   - SIEMPRE verticales (misma columna).
+;   - Longitud de 1 a 3 casillas.
+;   - Sin posiciones repetidas entre sí.
 ;====================================================
 generar_serpientes_escaleras:
     push    ebx
     push    ecx
     push    edx
+    push    esi
+    push    edi
+    push    ebp
 
     ;---------------------------------------
-    ; Generar serpientes
+    ; Generar 3 serpientes
     ;---------------------------------------
-    mov     ecx, 3
-    xor     ebx, ebx
+    xor     ebx, ebx              ; ebx = índice de serpiente (0..2)
 
-.gen_serp:
-    ; origen aleatorio (11..99)
-    push    99          ; max
-    push    11          ; min
+.gen_serp_outer:
+    cmp     ebx, 3
+    jge     .fin_serpientes       ; ya tenemos las 3
+
+.serp_try:
+    ; columna aleatoria 0..9
+    push    9
+    push    0
     call    random_rango
-    mov     [serpientes_origen + ebx*4], eax
+    mov     esi, eax              ; ESI = columna
 
-
-    ; destino aleatorio (1..origen-1)
-    dec     eax                 ; eax = origen - 1  (máximo)
-    push    eax                 ; max
-    push    1                   ; min
+    ; fila 1 (desde arriba) 0..9
+    push    9
+    push    0
     call    random_rango
-    mov     [serpientes_destino + ebx*4], eax
+    mov     edi, eax              ; EDI = fila1
 
+.serp_fila2:
+    ; fila 2 (desde arriba) 0..9
+    push    9
+    push    0
+    call    random_rango
+    mov     ecx, eax              ; ECX = fila2
+
+    ; diff = |fila1 - fila2|
+    mov     eax, edi
+    sub     eax, ecx
+    jns     .serp_no_neg
+    neg     eax
+.serp_no_neg:
+    cmp     eax, 1                ; mínimo 1 casilla de diferencia
+    jl      .serp_fila2
+    cmp     eax, 3                ; máximo 3 casillas de diferencia
+    jg      .serp_fila2
+
+    ; convertir (fila1, columna) -> pos1
+    mov     eax, edi              ; fila1
+    mov     edx, esi              ; columna
+    call    convertir_fila_col_a_pos
+    mov     ebp, eax              ; EBP = pos1
+
+    ; convertir (fila2, columna) -> pos2
+    mov     eax, ecx              ; fila2
+    mov     edx, esi              ; columna
+    call    convertir_fila_col_a_pos
+    mov     edx, eax              ; EDX = pos2
+
+    ; ordenar para que origen > destino (serpiente baja)
+    mov     eax, ebp              ; EAX = pos1
+    cmp     eax, edx
+    jg      .serp_pos_ok          ; si pos1 > pos2 ya está bien
+    ; swap: origen = pos2, destino = pos1
+    mov     eax, edx
+    mov     edx, ebp
+.serp_pos_ok:
+    ; EAX = origen (arriba, número mayor)
+    ; EDX = destino (abajo, número menor)
+
+    ; evitar conflictos con serpientes ya generadas
+    mov     ecx, ebx              ; cuántas serpientes hay
+    jecxz   .no_prev_serp_conf    ; si 0, no hay nada que revisar
+
+    xor     esi, esi              ; indice i = 0
+.serp_conf_loop:
+    mov     edi, [serpientes_origen + esi*4]
+    cmp     eax, edi
+    je      .serp_conflict
+    cmp     edx, edi
+    je      .serp_conflict
+
+    mov     edi, [serpientes_destino + esi*4]
+    cmp     eax, edi
+    je      .serp_conflict
+    cmp     edx, edi
+    je      .serp_conflict
+
+    inc     esi
+    loop    .serp_conf_loop
+
+.no_prev_serp_conf:
+    ; guardar serpiente válida
+    mov     [serpientes_origen  + ebx*4], eax
+    mov     [serpientes_destino + ebx*4], edx
 
     inc     ebx
-    loop    .gen_serp
+    jmp     .gen_serp_outer
 
+.serp_conflict:
+    jmp     .serp_try
+
+
+.fin_serpientes:
     ;---------------------------------------
-    ; Generar escaleras
+    ; Generar 3 escaleras
     ;---------------------------------------
+    xor     ebx, ebx              ; ebx = índice de escalera (0..2)
+
+.gen_esc_outer:
+    cmp     ebx, 3
+    jge     .fin_todo             ; ya tenemos las 3
+
+.esc_try:
+    ; columna aleatoria 0..9
+    push    9
+    push    0
+    call    random_rango
+    mov     esi, eax              ; ESI = columna
+
+    ; fila 1 (desde arriba) 0..9
+    push    9
+    push    0
+    call    random_rango
+    mov     edi, eax              ; EDI = fila1
+
+.esc_fila2:
+    ; fila 2 (desde arriba) 0..9
+    push    9
+    push    0
+    call    random_rango
+    mov     ecx, eax              ; ECX = fila2
+
+    ; diff = |fila1 - fila2|, 1..3
+    mov     eax, edi
+    sub     eax, ecx
+    jns     .esc_no_neg
+    neg     eax
+.esc_no_neg:
+    cmp     eax, 1
+    jl      .esc_fila2
+    cmp     eax, 3
+    jg      .esc_fila2
+
+    ; convertir (fila1, columna) -> pos1
+    mov     eax, edi
+    mov     edx, esi
+    call    convertir_fila_col_a_pos
+    mov     ebp, eax              ; EBP = pos1
+
+    ; convertir (fila2, columna) -> pos2
+    mov     eax, ecx
+    mov     edx, esi
+    call    convertir_fila_col_a_pos
+    mov     edx, eax              ; EDX = pos2
+
+    ; ordenar para que origen < destino (escalera sube)
+    mov     eax, ebp
+    cmp     eax, edx
+    jl      .esc_pos_ok           ; si pos1 < pos2 ya está bien
+    ; swap: origen = pos2, destino = pos1
+    mov     eax, edx
+    mov     edx, ebp
+.esc_pos_ok:
+    ; EAX = origen (abajo, número menor)
+    ; EDX = destino (arriba, número mayor)
+
+    ;-----------------------------------
+    ; evitar conflictos con serpientes
+    ;-----------------------------------
     mov     ecx, 3
-    xor     ebx, ebx
+    xor     esi, esi
+.esc_vs_serp_loop:
+    mov     edi, [serpientes_origen + esi*4]
+    cmp     eax, edi
+    je      .esc_conflict
+    cmp     edx, edi
+    je      .esc_conflict
 
-.gen_esc:
-    ; origen aleatorio (1..89)
-    push    89          ; max
-    push    1           ; min
-    call    random_rango
-    mov     [escaleras_origen + ebx*4], eax
+    mov     edi, [serpientes_destino + esi*4]
+    cmp     eax, edi
+    je      .esc_conflict
+    cmp     edx, edi
+    je      .esc_conflict
 
+    inc     esi
+    loop    .esc_vs_serp_loop
 
-    ; destino aleatorio (origen+1 .. 100)
-    mov     edx, eax
-    inc     edx                 ; edx = origen + 1  (min)
-    push    100                 ; max
-    push    edx                 ; min
-    call    random_rango
-    mov     [escaleras_destino + ebx*4], eax
+    ;-----------------------------------
+    ; evitar conflictos con escaleras previas
+    ;-----------------------------------
+    mov     ecx, ebx              ; cuántas escaleras ya hay
+    jecxz   .no_prev_esc_conf
 
+    xor     esi, esi
+.esc_conf_loop2:
+    mov     edi, [escaleras_origen + esi*4]
+    cmp     eax, edi
+    je      .esc_conflict
+    cmp     edx, edi
+    je      .esc_conflict
+
+    mov     edi, [escaleras_destino + esi*4]
+    cmp     eax, edi
+    je      .esc_conflict
+    cmp     edx, edi
+    je      .esc_conflict
+
+    inc     esi
+    loop    .esc_conf_loop2
+
+.no_prev_esc_conf:
+    ; guardar escalera válida
+    mov     [escaleras_origen  + ebx*4], eax
+    mov     [escaleras_destino + ebx*4], edx
 
     inc     ebx
-    loop    .gen_esc
+    jmp     .gen_esc_outer
 
+.esc_conflict:
+    jmp     .esc_try
+
+
+.fin_todo:
+    pop     ebp
+    pop     edi
+    pop     esi
     pop     edx
     pop     ecx
     pop     ebx
     ret
+
 
 ;====================================================
 ; convertir_pos_a_indice
@@ -534,6 +710,46 @@ convertir_pos_a_indice:
     pop     ecx
     pop     ebx
     ret
+
+;====================================================
+; convertir_fila_col_a_pos
+; Entrada:
+;   EAX = fila_desde_arriba (0..9)
+;   EDX = columna (0..9)
+; Salida:
+;   EAX = posicion (1..100)
+;====================================================
+convertir_fila_col_a_pos:
+    push    ebx
+    push    ecx
+    push    edx
+
+    mov     ecx, edx        ; ECX = columna
+    mov     ebx, 9
+    sub     ebx, eax        ; EBX = fila_desde_abajo (0..9)
+
+    ; si la fila desde abajo es impar, se invierte la columna (tablero serpenteante)
+    test    ebx, 1
+    jz      .fila_par
+
+    ; fila impar -> columna_en_ruta = 9 - col
+    mov     edx, 9
+    sub     edx, ecx
+    mov     ecx, edx
+
+.fila_par:
+    ; k0 = fila_desde_abajo * 10 + columna_en_ruta
+    mov     eax, ebx
+    mov     edx, 10
+    mul     edx             ; EAX = fila*10
+    add     eax, ecx        ; EAX = k0 (0..99)
+    inc     eax             ; posicion = k0 + 1 (1..100)
+
+    pop     edx
+    pop     ecx
+    pop     ebx
+    ret
+
 
 ;====================================================
 ; colocar_jugador_en_casillas
