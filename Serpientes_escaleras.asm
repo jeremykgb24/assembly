@@ -7,13 +7,6 @@ section .data
 
     clear_cmd   db "clear", 0
 
-    serpiente   db 'S', 0
-    escalera    db 'E', 0
-    jugador1_c  db '1', 0
-    jugador2_c  db '2', 0
-    jugador3_c  db '3', 0
-    vacio       db '.', 0
-
     fmt_top     db "┌─┬─┬─┬─┬─┬─┬─┬─┬─┬─┐", 10, 0
     fmt_mid     db "├─┼─┼─┼─┼─┼─┼─┼─┼─┼─┤", 10, 0
     fmt_bottom  db "└─┴─┴─┴─┴─┴─┴─┴─┴─┴─┘", 10, 0
@@ -22,7 +15,6 @@ section .data
     msg_pedir_jug   db 10, "Cuantos jugadores van a jugar? (1-3): ", 0
     msg_turno       db 10, "Turno del jugador %d de %d", 10, 0
     msg_enter       db 10, "Presiona ENTER para tirar el dado...", 10, 0
-    msg_prev_dado   db 10, "Jugador %d saco %d en el turno anterior", 10, 0
 
     msg_ganador     db 10, "El jugador %d ha ganado la partida.", 10, 0
     msg_resumen     db 10, "Resumen de la partida:", 10, 0
@@ -30,6 +22,11 @@ section .data
 
     msg_turno_info  db 10, "Jugador %d: dado %d, posicion %d, turnos %d", 10, 0
 
+    msg_subio_esc   db "   -> Subio por escalera de %d a %d", 10, 0
+    msg_bajo_serp   db "   -> Bajo por serpiente de %d a %d", 10, 0
+    msg_sin_cambio  db "   -> Sin serpiente ni escalera", 10, 0
+
+    
     fmt_char        db "%c", 0
     fmt_int         db "%d", 0
 
@@ -57,6 +54,11 @@ section .bss
     ultimo_jugador  resd 1
     ultimo_dado     resd 1
     hay_ultimo      resd 1
+
+    evento_tipo     resd 1      ; 0 = nada, 1 = escalera, 2 = serpiente
+    evento_origen   resd 1      ; posición antes de cambiar
+    evento_destino  resd 1      ; posición después de cambiar
+
 
     tecla           resb 1
 
@@ -146,26 +148,96 @@ bucle_turnos:
     ; dibujar tablero antes de lanzar dado
     call    dibujar_tablero
 
-    ; si hay un turno anterior, mostrar cuanto saco el dado
+    
+    ;---------------------------------------
+    ; Mostrar resumen del turno anterior
+    ;---------------------------------------
     mov     eax, [hay_ultimo]
     cmp     eax, 0
-    je      .sin_prev
+    je      .sin_prev    ; si no hay turno anterior, saltar
 
+    ; EAX = ultimo_jugador
     mov     eax, [ultimo_jugador]
-    mov     ebx, [ultimo_dado]
-    push    ebx
-    push    eax
-    push    msg_prev_dado
+    mov     edx, [ultimo_dado]     ; dado que saco
+
+    ; obtener pos y turnos del jugador anterior
+    cmp     eax, 1
+    je      .prev_j1
+    cmp     eax, 2
+    je      .prev_j2
+
+    ; jugador 3
+    mov     ebx, [pos_j3]
+    mov     ecx, [turnos_j3]
+    jmp     .tengo_prev
+
+.prev_j1:
+    mov     ebx, [pos_j1]
+    mov     ecx, [turnos_j1]
+    jmp     .tengo_prev
+
+.prev_j2:
+    mov     ebx, [pos_j2]
+    mov     ecx, [turnos_j2]
+
+.tengo_prev:
+    ; imprimir: Jugador X: dado Y, posicion Z, turnos T
+    push    ecx         ; turnos
+    push    ebx         ; posicion
+    push    edx         ; dado
+    push    eax         ; jugador
+    push    msg_turno_info
+    call    printf
+    add     esp, 20
+
+    ; imprimir si subio/bajo o nada
+    mov     eax, [evento_tipo]
+    cmp     eax, 1
+    je      .prev_escalera
+    cmp     eax, 2
+    je      .prev_serpiente
+
+    ; sin serpiente ni escalera
+    push    msg_sin_cambio
+    call    printf
+    add     esp, 4
+    jmp     .fin_prev_evento
+
+.prev_escalera:
+    mov     eax, [evento_origen]
+    mov     ebx, [evento_destino]
+    push    ebx             ; destino
+    push    eax             ; origen
+    push    msg_subio_esc
+    call    printf
+    add     esp, 12
+    jmp     .fin_prev_evento
+
+.prev_serpiente:
+    mov     eax, [evento_origen]
+    mov     ebx, [evento_destino]
+    push    ebx             ; destino
+    push    eax             ; origen
+    push    msg_bajo_serp
     call    printf
     add     esp, 12
 
-    .sin_prev:
-        ; mensaje de turno
-        push    ecx
-        push    esi
-        push    msg_turno
-        call    printf
-        add     esp, 12
+.fin_prev_evento:
+    ; limpiar evento para que no se repita
+    mov     dword [evento_tipo], 0
+
+.sin_prev:
+    ;---------------------------------------
+    ; mensaje de turno actual
+    ;---------------------------------------
+    mov     ecx, [num_jugadores]   ; <-- RECARGAR AQUÍ
+
+    push    ecx            ; total de jugadores
+    push    esi            ; jugador_actual
+    push    msg_turno
+    call    printf
+    add     esp, 12
+
     ; pedir ENTER
     push    msg_enter
     call    printf
@@ -235,12 +307,22 @@ mover_j3:
     mov     [turnos_j3], ebx
 
 ; comprobar si este jugador gano
+; comprobar si este jugador gano
 check_win:
+    ; aplicar serpiente/escalera si corresponde
+    call    aplicar_casilla_especial
+
+    ; guardar info del evento para imprimir despues
+    mov     [evento_tipo], eax
+    mov     [evento_origen], ebx
+    mov     [evento_destino], ecx
+
     cmp     esi, 1
     je      check_win_j1
     cmp     esi, 2
     je      check_win_j2
     jmp     check_win_j3
+
 
 check_win_j1:
     mov     eax, [pos_j1]
@@ -264,44 +346,17 @@ check_win_j3:
 
 
 despues_movimiento:
-    ; dibujar tablero despues de mover
-    call    dibujar_tablero
-
-    ; mostrar info del turno
-    mov     eax, esi
-    mov     edx, [valor_dado]
-
     ; guardar info basica del turno para el siguiente
-    mov     [ultimo_jugador], esi
+    mov     eax, esi              ; jugador que acaba de jugar
+    mov     edx, [valor_dado]     ; dado que saco
+
+    mov     [ultimo_jugador], eax
     mov     [ultimo_dado], edx
     mov     dword [hay_ultimo], 1
 
-    cmp     esi, 1
-    je      info_j1
-    cmp     esi, 2
-    je      info_j2
-
-    mov     ebx, [pos_j3]
-    mov     ecx, [turnos_j3]
-    jmp     imprimir_info
-
-info_j1:
-    mov     ebx, [pos_j1]
-    mov     ecx, [turnos_j1]
-    jmp     imprimir_info
-
-info_j2:
-    mov     ebx, [pos_j2]
-    mov     ecx, [turnos_j2]
-
-imprimir_info:
-    push    ecx
-    push    ebx
-    push    edx
-    push    eax
-    push    msg_turno_info
-    call    printf
-    add     esp, 20
+    ; aquí NO dibujamos tablero ni imprimimos nada.
+    ; solo guardamos la info, el tablero se dibuja
+    ; al inicio del siguiente turno en bucle_turnos.
 
     mov     eax, [ganador]
     cmp     eax, 0
@@ -311,7 +366,6 @@ imprimir_info:
     inc     eax
     mov     [jugador_actual], eax
     jmp     bucle_turnos
-
 
 
 ;====================================================
@@ -748,6 +802,90 @@ convertir_fila_col_a_pos:
     pop     edx
     pop     ecx
     pop     ebx
+    ret
+
+;====================================================
+; aplicar_casilla_especial
+; Entrada:
+;   ESI = jugador_actual (1..3)
+; Salida:
+;   EAX = tipo_evento (0=nada, 1=escalera, 2=serpiente)
+;   EBX = origen (posicion antes de cambiar)  si tipo != 0
+;   ECX = destino (posicion despues de cambiar) si tipo != 0
+; Efecto:
+;   Actualiza pos_j1/pos_j2/pos_j3 si hay serpiente/escalera
+;====================================================
+aplicar_casilla_especial:
+    push    ebp
+    mov     ebp, esp
+    push    edi
+    push    esi
+
+    ;---------------------------------
+    ; Obtener puntero a posicion jugador en EDI
+    ;---------------------------------
+    cmp     esi, 1
+    je      .jug1
+    cmp     esi, 2
+    je      .jug2
+    ; jugador 3
+    lea     edi, [pos_j3]
+    jmp     .tengo_ptr
+
+.jug2:
+    lea     edi, [pos_j2]
+    jmp     .tengo_ptr
+
+.jug1:
+    lea     edi, [pos_j1]
+
+.tengo_ptr:
+    mov     eax, [edi]       ; posicion actual del jugador
+    mov     ebx, eax         ; origen
+
+    ;---------------------------------
+    ; Revisar escaleras primero (sube)
+    ;---------------------------------
+    mov     ecx, 3
+    xor     edx, edx         ; indice = 0
+.esc_loop:
+    cmp     eax, [escaleras_origen + edx*4]
+    je      .escalera_encontrada
+    inc     edx
+    loop    .esc_loop
+
+    ;---------------------------------
+    ; Revisar serpientes (baja)
+    ;---------------------------------
+    mov     ecx, 3
+    xor     edx, edx
+.serp_loop:
+    cmp     eax, [serpientes_origen + edx*4]
+    je      .serpiente_encontrada
+    inc     edx
+    loop    .serp_loop
+
+    ;---------------------------------
+    ; No hubo serpiente ni escalera
+    ;---------------------------------
+    mov     eax, 0           ; tipo_evento = 0
+    jmp     .fin
+
+.escalera_encontrada:
+    mov     ecx, [escaleras_destino + edx*4] ; destino
+    mov     [edi], ecx       ; actualizar posicion del jugador
+    mov     eax, 1           ; tipo_evento = 1 (escalera)
+    jmp     .fin
+
+.serpiente_encontrada:
+    mov     ecx, [serpientes_destino + edx*4]
+    mov     [edi], ecx
+    mov     eax, 2           ; tipo_evento = 2 (serpiente)
+
+.fin:
+    pop     esi
+    pop     edi
+    pop     ebp
     ret
 
 
